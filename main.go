@@ -12,8 +12,8 @@ import (
 )
 
 type Snake struct {
-	HX  int
-	HY  int
+	X   int
+	Y   int
 	Dir Direction
 }
 
@@ -27,19 +27,21 @@ const (
 )
 
 const (
-	width  = 50
-	height = 20
+	width  = 20
+	height = 10
 )
 
 func main() {
 
 	var (
+		score  = 0
 		fruits = [width][height]int{}
 		snake  = Snake{
-			HX:  width / 2,
-			HY:  height / 2,
+			X:   width / 2,
+			Y:   height / 2,
 			Dir: Right,
 		}
+		sn     = [width][height]bool{}
 		exitCh = make(chan struct{})
 	)
 
@@ -51,29 +53,32 @@ func main() {
 		_ = keyboard.Close()
 	}()
 
+	// Initiate
+	placeFruit(width-1, height-1, &fruits)
+	sn[width/2][height/2] = true
 	for {
 
 		// Process keypress
 		select {
 		case event := <-keysEvents:
-			switch event.Key {
-			case keyboard.KeyArrowUp:
+			switch event.Rune {
+			case 'w':
 				if snake.Dir != Down {
 					snake.Dir = Up
 				}
-			case keyboard.KeyArrowDown:
+			case 's':
 				if snake.Dir != Up {
 					snake.Dir = Down
 				}
-			case keyboard.KeyArrowLeft:
+			case 'a':
 				if snake.Dir != Right {
 					snake.Dir = Left
 				}
-			case keyboard.KeyArrowRight:
+			case 'd':
 				if snake.Dir != Left {
 					snake.Dir = Right
 				}
-			case keyboard.KeyEsc:
+			case 0:
 				close(exitCh)
 				return
 			}
@@ -86,13 +91,13 @@ func main() {
 		// Choose where to move
 		switch snake.Dir {
 		case Up:
-			snake.HY--
+			snake.Y--
 		case Down:
-			snake.HY++
+			snake.Y++
 		case Left:
-			snake.HX--
+			snake.X--
 		case Right:
-			snake.HX++
+			snake.X++
 		}
 
 		// Draw logic
@@ -114,7 +119,20 @@ func main() {
 					fmt.Print("#\n")
 				} else {
 					// Draw snake, fruit or empty space
-					if x == snake.HX && y == snake.HY {
+					isCollide := checkWallsCollision(width, height, snake.X, snake.Y)
+					if isCollide {
+						close(exitCh)
+						fmt.Println("Game over!")
+						return
+					}
+
+					if fruits[snake.X][snake.Y] != 0 {
+						score++
+						fruits[snake.X][snake.Y] = 0
+						placeFruit(width, height, &fruits)
+					}
+
+					if sn[x][y] || snake.X == x && snake.Y == y {
 						fmt.Print("S")
 					} else {
 						if fruits[x][y] == 1 {
@@ -127,8 +145,7 @@ func main() {
 				}
 			}
 		}
-
-		placeFruit(width, height, &fruits)
+		fmt.Printf("SCORE: %v\n", score)
 		time.Sleep(time.Second / 5)
 	}
 }
@@ -142,7 +159,11 @@ func clearTerm(clearCmd string) {
 }
 
 func placeFruit(width, height int, fruits *[width][height]int) {
-	rx := 1 + rand.Intn(width-1)
-	ry := 1 + rand.Intn(height-1)
+	rx := 1 + rand.Intn(width-2)
+	ry := 1 + rand.Intn(height-2)
 	fruits[rx][ry] = 1
+}
+
+func checkWallsCollision(width, height, x, y int) bool {
+	return x <= 0 || x >= width-1 || y <= 0 || y >= height-1
 }
