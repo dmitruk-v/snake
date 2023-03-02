@@ -11,7 +11,7 @@ import (
 	"github.com/eiannone/keyboard"
 )
 
-type Snake struct {
+type Node struct {
 	X   int
 	Y   int
 	Dir Direction
@@ -36,16 +36,12 @@ func main() {
 	var (
 		score  = 0
 		fruits = [width][height]int{}
-		snake  = Snake{
-			X:   width / 2,
-			Y:   height / 2,
-			Dir: Right,
-		}
-		sn     = [width][height]bool{}
+		snake  Node
+		tail   []Node
 		exitCh = make(chan struct{})
 	)
 
-	keysEvents, err := keyboard.GetKeys(1)
+	keysEvents, err := keyboard.GetKeys(10)
 	if err != nil {
 		panic(err)
 	}
@@ -55,12 +51,23 @@ func main() {
 
 	// Initiate
 	placeFruit(width-1, height-1, &fruits)
-	sn[width/2][height/2] = true
+	snake = Node{
+		X:   width / 2,
+		Y:   height / 2,
+		Dir: Right,
+	}
+	tail = []Node{
+		{X: snake.X - 1, Y: snake.Y, Dir: snake.Dir},
+		{X: snake.X - 2, Y: snake.Y, Dir: snake.Dir},
+		{X: snake.X - 3, Y: snake.Y, Dir: snake.Dir},
+	}
+
 	for {
 
 		// Process keypress
 		select {
 		case event := <-keysEvents:
+			log.Println(event)
 			switch event.Rune {
 			case 'w':
 				if snake.Dir != Down {
@@ -127,19 +134,28 @@ func main() {
 					}
 
 					if fruits[snake.X][snake.Y] != 0 {
+						_ = tail
 						score++
 						fruits[snake.X][snake.Y] = 0
 						placeFruit(width, height, &fruits)
 					}
 
-					if sn[x][y] || snake.X == x && snake.Y == y {
-						fmt.Print("S")
+					if snake.X == x && snake.Y == y {
+						fmt.Print("H")
+					} else if fruits[x][y] == 1 {
+						fmt.Print("F")
 					} else {
-						if fruits[x][y] == 1 {
-							fmt.Print("F")
-						} else {
-							fmt.Print(" ")
+						prev := snake
+						for i := 0; i < len(tail); i++ {
+							if tail[i].X == x && tail[i].Y == y {
+								fmt.Print("T")
+							}
+							tail[i].X = prev.X
+							tail[i].Y = prev.Y
+							tail[i].Dir = prev.Dir
+							prev = tail[i]
 						}
+						fmt.Print(" ")
 					}
 					// --------------------------------
 				}
@@ -159,9 +175,9 @@ func clearTerm(clearCmd string) {
 }
 
 func placeFruit(width, height int, fruits *[width][height]int) {
-	rx := 1 + rand.Intn(width-2)
-	ry := 1 + rand.Intn(height-2)
-	fruits[rx][ry] = 1
+	x := 1 + rand.Intn(width-2)
+	y := 1 + rand.Intn(height-2)
+	fruits[x][y] = 1
 }
 
 func checkWallsCollision(width, height, x, y int) bool {
