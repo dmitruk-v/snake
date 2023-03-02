@@ -98,7 +98,7 @@ func main() {
 		// Draw logic
 		clearTerm("clear")
 		for y := 0; y < height; y++ {
-			for x := 0; y < width; x++ {
+			for x := 0; x < width; x++ {
 				// Print header and footer
 				if y == 0 || y == height-1 {
 					fmt.Print("#")
@@ -111,7 +111,7 @@ func main() {
 				if x == 0 {
 					fmt.Print("#")
 				} else if x == width-1 {
-					fmt.Print("\n")
+					fmt.Print("#\n")
 				} else {
 					// Draw snake, fruit or empty space
 					if x == snake.HX && y == snake.HY {
@@ -128,8 +128,8 @@ func main() {
 			}
 		}
 
-		placeFruit(width, height, fruits)
-		time.Sleep(time.Second / 10)
+		placeFruit(width, height, &fruits)
+		time.Sleep(time.Second / 5)
 	}
 }
 
@@ -141,8 +141,8 @@ func clearTerm(clearCmd string) {
 	}
 }
 
-func placeFruit(width, height int, fruits [width][height]int) {
+func placeFruit(width, height int, fruits *[width][height]int) {
 	rx := 1 + rand.Intn(width-1)
 	ry := 1 + rand.Intn(height-1)
-	fruits[ry][rx] = 1
+	fruits[rx][ry] = 1
 }
