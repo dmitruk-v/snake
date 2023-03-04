@@ -12,44 +12,45 @@ func main() {
 	}
 }
 
-const delayBetweenGames = 3
+const delayBetweenGames = 3 * time.Second
+
+type Level struct {
+	width           int
+	height          int
+	maxScore        int
+	diff            Difficulty
+	fruitSpawnDelay time.Duration
+}
+
+var levels = []Level{
+	{width: 30, height: 13, maxScore: 5, diff: Easy, fruitSpawnDelay: 5 * time.Second},
+	{width: 35, height: 15, maxScore: 10, diff: Medium, fruitSpawnDelay: 5 * time.Second},
+	{width: 40, height: 17, maxScore: 15, diff: Hard, fruitSpawnDelay: 10 * time.Second},
+	{width: 45, height: 19, maxScore: 20, diff: Impossible, fruitSpawnDelay: 10 * time.Second},
+}
 
 func run() error {
-	game := NewGame(30, 13, 5, Easy)
-	result := game.Run()
-	if result.success {
-		fmt.Println("EASY completed in", result.spent.Truncate(time.Millisecond))
-		fmt.Printf("MEDIUM in %v seconds...\n", delayBetweenGames)
-		time.Sleep(time.Second * delayBetweenGames)
-	} else {
-		return nil
-	}
 
-	game = NewGame(35, 15, 10, Medium)
-	result = game.Run()
-	if result.success {
-		fmt.Println("MEDIUM completed in", result.spent.Truncate(time.Millisecond))
-		fmt.Printf("HARD in %v seconds...\n", delayBetweenGames)
-		time.Sleep(time.Second * delayBetweenGames)
-	} else {
-		return nil
-	}
-
-	game = NewGame(40, 17, 15, Hard)
-	result = game.Run()
-	if result.success {
-		fmt.Println("HARD completed in", result.spent.Truncate(time.Millisecond))
-		fmt.Printf("IMPOSSIBLE in %v seconds...\n", delayBetweenGames)
-		time.Sleep(time.Second * delayBetweenGames)
-	} else {
-		return nil
-	}
-
-	game = NewGame(45, 19, 30, Impossible)
-	result = game.Run()
-	if result.success {
-		fmt.Println("IMPOSSIBLE completed in", result.spent.Truncate(time.Millisecond))
-		fmt.Println("OMG YOU HAVE DONE THE WHOLE GAME! AMAIZING!")
+	for i, level := range levels {
+		cfg := GameConfig{
+			Width:           level.width,
+			Height:          level.height,
+			MaxScore:        level.maxScore,
+			Difficulty:      level.diff,
+			FruitSpawnDelay: level.fruitSpawnDelay,
+		}
+		game := NewGame(cfg)
+		result := game.Run()
+		if result.success {
+			fmt.Printf("%v completed in %v\n", DifficultiesMap[level.diff], result.spent.Truncate(time.Millisecond))
+			if i < len(levels)-1 {
+				nextDiff := levels[i+1].diff
+				fmt.Printf("%v in %v seconds...\n", DifficultiesMap[nextDiff], delayBetweenGames)
+			}
+			time.Sleep(delayBetweenGames)
+		} else {
+			return nil
+		}
 	}
 	return nil
 }

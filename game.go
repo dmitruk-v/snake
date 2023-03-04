@@ -2,15 +2,20 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
-	"os"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/eiannone/keyboard"
 )
+
+type GameConfig struct {
+	Width           int
+	Height          int
+	MaxScore        int
+	FruitSpawnDelay time.Duration
+	Difficulty      Difficulty
+}
 
 type Node struct {
 	X   int
@@ -31,8 +36,8 @@ type Difficulty int
 
 const (
 	Easy       Difficulty = 5
-	Medium     Difficulty = 6
-	Hard       Difficulty = 8
+	Medium     Difficulty = 7
+	Hard       Difficulty = 9
 	Impossible Difficulty = 12
 )
 
@@ -49,43 +54,39 @@ type Result struct {
 }
 
 type Game struct {
+	config      GameConfig
 	gameRand    *rand.Rand
-	width       int
-	height      int
 	isGameOver  bool
 	isCompleted bool
 	snake       Node
 	tail        []Node
 	score       int
-	topScore    int
-	diff        Difficulty
 	fruits      [][]int
 	exitCh      chan struct{}
 	keyCh       chan rune
 	wg          sync.WaitGroup
+	ticker      *time.Ticker
 }
 
-func NewGame(width, height int, topScore int, diff Difficulty) *Game {
-	fruits := make([][]int, width)
-	for i := 0; i < width; i++ {
-		fruits[i] = make([]int, height)
+func NewGame(config GameConfig) *Game {
+	fruits := make([][]int, config.Width)
+	for i := 0; i < config.Width; i++ {
+		fruits[i] = make([]int, config.Height)
 	}
 	return &Game{
+		config:   config,
 		gameRand: rand.New(rand.NewSource(time.Now().Unix())),
-		width:    width,
-		height:   height,
-		topScore: topScore,
-		diff:     diff,
 		fruits:   fruits,
 		exitCh:   make(chan struct{}),
 		keyCh:    make(chan rune, 1),
+		ticker:   time.NewTicker(config.FruitSpawnDelay),
 	}
 }
 
 func (g *Game) init() {
 	// Initiate
 	g.placeFruit()
-	g.snake = Node{X: g.width / 2, Y: g.height / 2, Dir: Right}
+	g.snake = Node{X: g.config.Width / 2, Y: g.config.Height / 2, Dir: Right}
 	// Hide cursor
 	fmt.Print("\x1b[?25l")
 }
@@ -121,6 +122,7 @@ func (g *Game) Run() Result {
 		// Signal to gorutines to exit
 		if g.isGameOver || g.isCompleted {
 			close(g.exitCh)
+			g.ticker.Stop()
 			g.wg.Wait()
 		}
 		// Game over case
@@ -142,7 +144,7 @@ func (g *Game) Run() Result {
 		g.gameLogic()
 		g.gameDraw()
 
-		time.Sleep(time.Second / time.Duration(g.diff))
+		time.Sleep(time.Second / time.Duration(g.config.Difficulty))
 	}
 }
 
@@ -177,11 +179,17 @@ func (g *Game) gameInput() {
 }
 
 func (g *Game) gameLogic() {
+	// Place fruit on timer
+	select {
+	case <-g.ticker.C:
+		g.placeFruit()
+	default:
+	}
 	// Eat fruit logic
 	if g.fruits[g.snake.X][g.snake.Y] != 0 {
 		g.score++
 		g.fruits[g.snake.X][g.snake.Y] = 0
-		if g.score == g.topScore {
+		if g.score == g.config.MaxScore {
 			g.gameCompleted()
 			return
 		}
@@ -232,12 +240,12 @@ func (g *Game) gameLogic() {
 
 func (g *Game) gameDraw() {
 	fmt.Print("\x1b[1J\x1b[0;0H")
-	for y := 0; y < g.height; y++ {
-		for x := 0; x < g.width; x++ {
+	for y := 0; y < g.config.Height; y++ {
+		for x := 0; x < g.config.Width; x++ {
 			// Print top and bottom walls
-			if y == 0 || y == g.height-1 {
+			if y == 0 || y == g.config.Height-1 {
 				fmt.Print("#")
-				if x == g.width-1 {
+				if x == g.config.Width-1 {
 					fmt.Print("\n")
 				}
 				continue
@@ -248,7 +256,7 @@ func (g *Game) gameDraw() {
 				continue
 			}
 			// Print right wall
-			if x == g.width-1 {
+			if x == g.config.Width-1 {
 				fmt.Print("#\n")
 				continue
 			}
@@ -275,7 +283,9 @@ func (g *Game) gameDraw() {
 			}
 		}
 	}
-	fmt.Printf("\x1b[38;5;226mSCORE: %v/%v\x1b[0m, DIFFICULTY: \x1b[38;5;207m%v\x1b[0m\n", g.score, g.topScore, DifficultiesMap[g.diff])
+	diffName := DifficultiesMap[g.config.Difficulty]
+	statsTpl := "\x1b[38;5;226mSCORE: %v/%v\x1b[0m, DIFFICULTY: \x1b[38;5;207m%v\x1b[0m\n"
+	fmt.Printf(statsTpl, g.score, g.config.MaxScore, diffName)
 	if g.isGameOver {
 		fmt.Println("\x1b[38;5;198mGAME OVER!\x1b[0m")
 	} else if g.isCompleted {
@@ -293,22 +303,14 @@ func (g *Game) gameCompleted() {
 	fmt.Print("\x1b[?25h")
 }
 
-func (g *Game) clearTerm(cmdName string) {
-	c := exec.Command(cmdName)
-	c.Stdout = os.Stdout
-	if err := c.Run(); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func (g *Game) placeFruit() {
-	x := 1 + g.gameRand.Intn(g.width-2)
-	y := 1 + g.gameRand.Intn(g.height-2)
+	x := 1 + g.gameRand.Intn(g.config.Width-2)
+	y := 1 + g.gameRand.Intn(g.config.Height-2)
 	g.fruits[x][y] = 1
 }
 
 func (g *Game) doesWallsCollision() bool {
-	return g.snake.X <= 0 || g.snake.X >= g.width-1 || g.snake.Y <= 0 || g.snake.Y >= g.height-1
+	return g.snake.X <= 0 || g.snake.X >= g.config.Width-1 || g.snake.Y <= 0 || g.snake.Y >= g.config.Height-1
 }
 
 func (g *Game) doesSelfEat() bool {
